@@ -8,15 +8,22 @@
 
 import Foundation
 
+protocol WeatherManagerDelegate {
+    func didUpdateWeather(_ weahterManager: WeatherManager, weather: WeatherModel)
+    func didFailWithError(error: Error)
+}
+
 struct WeatherManager {
     let weatherURL = "https://api.openweathermap.org/data/2.5/weather?id=524901&appid=8a4c73453c47b235b07f377a179b8959&units=imperial"
     
+    var delegate: WeatherManagerDelegate?
+    
     func fetchWeather(cityName: String) {
         let urlString = "\(weatherURL)&q=\(cityName)"
-        preformRequest(urlString: urlString)
+        preformRequest(with: urlString)
     }
     
-    func preformRequest(urlString: String) {
+    func preformRequest(with urlString: String) {
         // create URL
         if let url = URL(string: urlString) {
             
@@ -26,12 +33,14 @@ struct WeatherManager {
             // give session a task
             let task = session.dataTask(with: url) { (data, response, error) in
                 if error != nil {
-                    print("error in handel func \(error!)")
+                    self.delegate?.didFailWithError(error: error!)
                     return
                 }
                 
                 if let safeData = data {
-                    self.parseJSON(weatherData: safeData)
+                    if let weather = self.parseJSON(safeData) {
+                        self.delegate?.didUpdateWeather(self, weather: weather)
+                    }
                 }
             }
             
@@ -40,18 +49,25 @@ struct WeatherManager {
         }
     }
     
-    func parseJSON(weatherData: Data) {
+    func parseJSON(_ weatherData: Data) -> WeatherModel? {
         let decoder = JSONDecoder()
         
         do {
          let decodedData = try decoder.decode(WeatherData.self, from: weatherData)
-            print(decodedData.main.temp)
-            print(decodedData.weather[0].description)
+            //print(decodedData.main.temp)
+            let id = decodedData.weather[0].id
+            let temp = decodedData.main.temp
+            let name = decodedData.name
+            
+            let weather = WeatherModel(conditionId: id, cityName: name, temperature: temp)
+            return weather
+            
         } catch {
-            print("error decoding JSON data \(error)")
+            delegate?.didFailWithError(error: error)
+            return nil
         }
     }
     
-    
+
     
 }
